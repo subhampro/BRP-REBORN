@@ -1,0 +1,23 @@
+**/artifacts
+**/server-data/db
+**/server-data/db/current
+**/server-data/cache
+**/txData/dev_server/
+**/gitignore
+**/ignored
+*.7z
+# *.zip
+*.rar
+# **\[assets\]
+server-data/db
+server-data/db/current
+# txData/default/config.json
+txData/default/data/playersDB.backup.json
+# txData/default/data/playersDB.json
+txData/default/data/stats_heatmapData_v1.json
+# txData/default/logs/admin.log
+# txData/default/logs/fxserver.log
+# txData/default/logs/server.log
+txData/default/logs/fxserver.history
+txData/default/logs/server.history
+*.log
