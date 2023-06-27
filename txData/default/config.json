@@ -38,8 +38,8 @@
   },
   "fxRunner": {
     "autostart": true,
-    "serverDataPath": "E:/QBCore/txData/QBCoreFramework_95B15E.base/",
-    "cfgPath": "E:/QBCore/txData/QBCoreFramework_95B15E.base/server.cfg",
+    "serverDataPath": "C:/Users/brp/Desktop/BRP-REBORN/BRP-REBORN/server-data",
+    "cfgPath": "C:/Users/brp/Desktop/BRP-REBORN/BRP-REBORN/server-data/server.cfg",
     "onesync": "on"
   }
 }
