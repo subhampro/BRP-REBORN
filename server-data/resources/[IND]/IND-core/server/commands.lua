@@ -9,7 +9,7 @@ CreateThread(function() -- Add ace to node for perm checking
     local permissions = INDConfig.Server.Permissions
     for i=1, #permissions do
         local permission = permissions[i]
-        ExecuteCommand(('add_ace qbcore.%s %s allow'):format(permission, permission))
+        ExecuteCommand(('add_ace INDCore.%s %s allow'):format(permission, permission))
     end
 end)
 
@@ -38,14 +38,14 @@ function INDCore.Commands.Add(name, help, arguments, argsrequired, callback, per
         permission = extraPerms
         for i = 1, permission.n do
             if not INDCore.Commands.IgnoreList[permission[i]] then -- only create aces for extra perm levels
-                ExecuteCommand(('add_ace qbcore.%s command.%s allow'):format(permission[i], name))
+                ExecuteCommand(('add_ace INDCore.%s command.%s allow'):format(permission[i], name))
             end
         end
         permission.n = nil
     else
         permission = tostring(permission:lower())
         if not INDCore.Commands.IgnoreList[permission] then -- only create aces for extra perm levels
-            ExecuteCommand(('add_ace qbcore.%s command.%s allow'):format(permission, name))
+            ExecuteCommand(('add_ace INDCore.%s command.%s allow'):format(permission, name))
         end
     end
 
@@ -183,9 +183,16 @@ end, 'admin')
 
 -- Vehicle
 
-INDCore.Commands.Add('car', Lang:t("command.car.help"), {{ name = Lang:t("command.car.params.model.name"), help = Lang:t("command.car.params.model.help") }}, true, function(source, args)
-    TriggerClientEvent('INDCore:Command:SpawnVehicle', source, args[1])
-end, 'admin')
+-- INDCore.Commands.Add('sv', Lang:t("command.car.help"), {{ name = Lang:t("command.car.params.model.name"), help = Lang:t("command.car.params.model.help") }}, true, function(source, args)
+--     TriggerClientEvent('INDCore:Command:SpawnVehicle', source, args[1])
+-- end, 'admin')
+
+
+
+INDCore.Commands.Add("sv", "Spawn a vehicle", {{name="model", help="Model name of the vehicle"},{name="plate", help="Number Plate of the vehicle"}}, true, function(source, args)
+	-- TriggerClientEvent('INDCore:Command:SpawnVehicle', source, args[1])
+	TriggerClientEvent('INDCore:Command:SpawnVehicle', source, args[1], args[2])
+end, "admin")
 
 INDCore.Commands.Add('dv', Lang:t("command.dv.help"), {}, false, function(source)
     TriggerClientEvent('INDCore:Command:DeleteVehicle', source)
@@ -292,3 +299,16 @@ INDCore.Commands.Add('me', Lang:t("command.me.help"), {{name = Lang:t("command.m
         end
     end
 end, 'user')
+
+
+-- Clear Inventory Command
+
+INDCore.Commands.Add("clearinv", "Clear the inventory of a player", {{name="id", help="Player ID"}}, false, function(source, args)
+	local playerId = args[1] ~= nil and args[1] or source 
+	local Player = INDCore.Functions.GetPlayer(tonumber(playerId))
+	if Player ~= nil then
+		Player.Functions.ClearInventory()
+	else
+		TriggerClientEvent('chatMessage', source, "SYSTEM", "error", "Player is not online!")
+	end
+end, "god")

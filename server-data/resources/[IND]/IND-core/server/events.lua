@@ -268,20 +268,30 @@ end)
 -- Vehicle server-side spawning callback (netId)
 -- use the netid on the client with the NetworkGetEntityFromNetworkId native
 -- convert it to a vehicle via the NetToVeh native
-INDCore.Functions.CreateCallback('INDCore:Server:SpawnVehicle', function(source, cb, model, coords, warp)
-    local ped = GetPlayerPed(source)
-    model = type(model) == 'string' and joaat(model) or model
-    if not coords then coords = GetEntityCoords(ped) end
-    local veh = CreateVehicle(model, coords.x, coords.y, coords.z, coords.w, true, true)
-    while not DoesEntityExist(veh) do Wait(0) end
-    if warp then
-        while GetVehiclePedIsIn(ped) ~= veh do
-            Wait(0)
-            TaskWarpPedIntoVehicle(ped, veh, -1)
-        end
-    end
-    while NetworkGetEntityOwner(veh) ~= source do Wait(0) end
-    cb(NetworkGetNetworkIdFromEntity(veh))
+-- INDCore.Functions.CreateCallback('INDCore:Server:SpawnVehicle', function(source, cb, model, coords, warp)
+--     local ped = GetPlayerPed(source)
+--     model = type(model) == 'string' and joaat(model) or model
+--     if not coords then coords = GetEntityCoords(ped) end
+--     local veh = CreateVehicle(model, coords.x, coords.y, coords.z, coords.w, true, true)
+--     -- SetVehicleNumberPlateText(vehicle, plate)
+--     while not DoesEntityExist(veh) do Wait(0) end
+--     if warp then
+--         while GetVehiclePedIsIn(ped) ~= veh do
+--             Wait(0)
+--             TaskWarpPedIntoVehicle(ped, veh, -1)
+--         end
+--     end
+--     while NetworkGetEntityOwner(veh) ~= source do Wait(0) end
+--     cb(NetworkGetNetworkIdFromEntity(veh))
+-- end)
+
+RegisterNetEvent('INDCore:Command:SpawnVehicle')
+AddEventHandler('INDCore:Command:SpawnVehicle', function(model, plate)
+	INDCore.Functions.SpawnVehicle(model, function(vehicle)
+		SetVehicleNumberPlateText(vehicle, plate)
+		TaskWarpPedIntoVehicle(GetPlayerPed(-1), vehicle, -1)
+		TriggerEvent("vehiclekeys:client:SetOwner", GetVehicleNumberPlateText(vehicle))
+	end)
 end)
 
 -- Use this for long distance vehicle spawning

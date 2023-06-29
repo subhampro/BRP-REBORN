@@ -416,6 +416,12 @@ function INDCore.Player.CreatePlayer(PlayerData, Offline)
     end
 end
 
+-- self.Functions.ClearInventory = function()
+--     self.PlayerData.items = {}
+--     self.Functions.UpdatePlayerData()
+--     TriggerEvent("qb-log:server:CreateLog", "playerinventory", "ClearInventory", "red", "**"..GetPlayerName(self.PlayerData.source) .. " (citizenid: "..self.PlayerData.citizenid.." | id: "..self.PlayerData.source..")** inventory cleared")
+-- end
+
 -- Add a new function to the Functions table of the player class
 -- Use-case:
 --[[

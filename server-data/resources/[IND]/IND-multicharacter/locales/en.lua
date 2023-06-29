@@ -24,11 +24,11 @@ local Translations = {
 
     ui = {
         -- Main
-        characters_header = "My Characters",
+        characters_header = "Your Personalities",
         emptyslot = "Empty Slot",
-        play_button = "Play",
-        create_button = "Create Character",
-        delete_button = "Delete Character",
+        play_button = "Begin the Journey",
+        create_button = "Create a Personality",
+        delete_button = "Wipe a Personality",
 
         -- Character Information
         charinfo_header = "Character Information",

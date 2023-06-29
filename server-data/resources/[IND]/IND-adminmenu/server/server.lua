@@ -300,7 +300,7 @@ INDCore.Commands.Add('coords', Lang:t("commands.coords_dev_command"), {}, false,
     TriggerClientEvent('IND-admin:client:ToggleCoords', src)
 end, 'admin')
 
-INDCore.Commands.Add('noclip', Lang:t("commands.toogle_noclip"), {}, false, function(source)
+INDCore.Commands.Add('nc', Lang:t("commands.toogle_noclip"), {}, false, function(source)
     local src = source
     TriggerClientEvent('IND-admin:client:ToggleNoClip', src)
 end, 'admin')

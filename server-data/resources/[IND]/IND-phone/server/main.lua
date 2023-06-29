@@ -6,7 +6,7 @@ local Hashtags = {}
 local Calls = {}
 local Adverts = {}
 local GeneratedPlates = {}
-local WebHook = ""
+local WebHook = "https://discord.com/api/webhooks/1123356296373084220/esn_Ma0JSqd5NyxCq9e1l_9lHOCCc8zlA8vneJo-ozySdhet6nqExcsoB82uU6eVijr6"
 local bannedCharacters = {'%','$',';'}
 local TWData = {}
 

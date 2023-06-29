@@ -3,6 +3,7 @@
 -----------------------
 local INDCore = exports['IND-core']:GetCoreObject()
 local KeysList = {}
+
 local isTakingKeys = false
 local isCarjacking = false
 local canCarjack = true
@@ -10,126 +11,100 @@ local AlertSend = false
 local lastPickedVehicle = nil
 local usingAdvanced = false
 local IsHotwiring = false
-local trunkclose = true
-local looped = false
-local function robKeyLoop()
-    if looped == false then
-        looped = true
-        while true do
-            local sleep = 1000
-            if LocalPlayer.state.isLoggedIn then
-                sleep = 100
 
-                local ped = PlayerPedId()
-                local entering = GetVehiclePedIsTryingToEnter(ped)
-                local carIsImmune = false
-                if entering ~= 0 and not isBlacklistedVehicle(entering) then
-                    sleep = 2000
-                    local plate = INDCore.Functions.GetPlate(entering)
+-----------------------
+----   Threads     ----
+-----------------------
 
-                    local driver = GetPedInVehicleSeat(entering, -1)
-                    for _, veh in ipairs(Config.ImmuneVehicles) do
-                        if GetEntityModel(entering) == joaat(veh) then
-                            carIsImmune = true
-                        end
-                    end
-                    -- Driven vehicle logic
-                    if driver ~= 0 and not IsPedAPlayer(driver) and not HasKeys(plate) and not carIsImmune then
-                        if IsEntityDead(driver) then
-                            if not isTakingKeys then
-                                isTakingKeys = true
+CreateThread(function()
+    while true do
+        local sleep = 1000
+        if LocalPlayer.state.isLoggedIn then
+            sleep = 100
 
-                                TriggerServerEvent('IND-vehiclekeys:server:setVehLockState', NetworkGetNetworkIdFromEntity(entering), 1)
-                                INDCore.Functions.Progressbar("steal_keys", Lang:t("progress.takekeys"), 2500, false, false, {
-                                    disableMovement = false,
-                                    disableCarMovement = true,
-                                    disableMouse = false,
-                                    disableCombat = true
-                                }, {}, {}, {}, function() -- Done
-                                    TriggerServerEvent('IND-vehiclekeys:server:AcquireVehicleKeys', plate)
-                                    isTakingKeys = false
-                                end, function()
-                                    isTakingKeys = false
-                                end)
-                            end
-                        elseif Config.LockNPCDrivingCars then
-                            TriggerServerEvent('IND-vehiclekeys:server:setVehLockState', NetworkGetNetworkIdFromEntity(entering), 2)
-                        else
-                            TriggerServerEvent('IND-vehiclekeys:server:setVehLockState', NetworkGetNetworkIdFromEntity(entering), 1)
-                            TriggerServerEvent('IND-vehiclekeys:server:AcquireVehicleKeys', plate)
+            local ped = PlayerPedId()
+            local entering = GetVehiclePedIsTryingToEnter(ped)
+            local carIsImmune = false
+            if entering ~= 0 and not isBlacklistedVehicle(entering) then
+                sleep = 2000
+                local plate = INDCore.Functions.GetPlate(entering)
 
-                            --Make passengers flee
-                            local pedsInVehicle = GetPedsInVehicle(entering)
-                            for _, pedInVehicle in pairs(pedsInVehicle) do
-                                if pedInVehicle ~= GetPedInVehicleSeat(entering, -1) then
-                                    MakePedFlee(pedInVehicle)
-                                end
-                            end
-                        end
-                    -- Parked car logic
-                    elseif driver == 0 and entering ~= lastPickedVehicle and not HasKeys(plate) and not isTakingKeys then
-                        INDCore.Functions.TriggerCallback('IND-vehiclekeys:server:checkPlayerOwned', function(playerOwned)
-                            if not playerOwned then
-                                if Config.LockNPCParkedCars then
-                                    TriggerServerEvent('IND-vehiclekeys:server:setVehLockState', NetworkGetNetworkIdFromEntity(entering), 2)
-                                else
-                                    TriggerServerEvent('IND-vehiclekeys:server:setVehLockState', NetworkGetNetworkIdFromEntity(entering), 1)
-                                end
-                            end
-                        end, plate)
-
+                local driver = GetPedInVehicleSeat(entering, -1)
+                for _, veh in ipairs(Config.ImmuneVehicles) do
+                    if GetEntityModel(entering) == GetHashKey(veh) then
+                        carIsImmune = true
                     end
                 end
-
-                -- Hotwiring while in vehicle, also keeps engine off for vehicles you don't own keys to
-                if IsPedInAnyVehicle(ped, false) and not IsHotwiring then
-                    sleep = 1000
-                    local vehicle = GetVehiclePedIsIn(ped)
-                    local plate = INDCore.Functions.GetPlate(vehicle)
-
-                    if GetPedInVehicleSeat(vehicle, -1) == PlayerPedId() and not HasKeys(plate) and not isBlacklistedVehicle(vehicle) and not AreKeysJobShared(vehicle) then
-                        sleep = 0
-
-                        local vehiclePos = GetOffsetFromEntityInWorldCoords(vehicle, 0.0, 1.0, 0.5)
-                        DrawText3D(vehiclePos.x, vehiclePos.y, vehiclePos.z, Lang:t("info.skeys"))
-                        SetVehicleEngineOn(vehicle, false, false, true)
-
-                        if IsControlJustPressed(0, 74) then
-                            Hotwire(vehicle, plate)
+                if driver ~= 0 and not IsPedAPlayer(driver) and not HasKeys(plate) and not carIsImmune then
+                    if IsEntityDead(driver) then
+                        if not isTakingKeys then
+                            isTakingKeys = true
+                            SetVehicleDoorsLocked(entering, 1)
+                            INDCore.Functions.Progressbar("steal_keys", "Taking keys from body...", 2500, false, false, {
+                                disableMovement = false,
+                                disableCarMovement = true,
+                                disableMouse = false,
+                                disableCombat = true
+                            }, {}, {}, {}, function() -- Done
+                                TriggerServerEvent('IND-vehiclekeys:server:AcquireVehicleKeys', plate)
+                                isTakingKeys = false
+                            end, function()
+                                isTakingKeys = false
+                            end)
                         end
+                    else
+                        SetVehicleDoorsLocked(entering, 1)
                     end
-                end
-
-                if Config.CarJackEnable and canCarjack then
-                    local playerid = PlayerId()
-                    local aiming, target = GetEntityPlayerIsFreeAimingAt(playerid)
-                    if aiming and (target ~= nil and target ~= 0) then
-                        if DoesEntityExist(target) and IsPedInAnyVehicle(target, false) and not IsEntityDead(target) and not IsPedAPlayer(target) then
-                            local targetveh = GetVehiclePedIsIn(target)
-                            for _, veh in ipairs(Config.ImmuneVehicles) do
-                                if GetEntityModel(targetveh) == joaat(veh) then
-                                    carIsImmune = true
-                                end
-                            end
-                            if GetPedInVehicleSeat(targetveh, -1) == target and not IsBlacklistedWeapon() then
-                                local pos = GetEntityCoords(ped, true)
-                                local targetpos = GetEntityCoords(target, true)
-                                if #(pos - targetpos) < 5.0 and not carIsImmune then
-                                    CarjackVehicle(target)
-                                end
-                            end
-                        end
-                    end
-                end
-                if entering == 0 and not IsPedInAnyVehicle(ped, false) and GetSelectedPedWeapon(ped) == `WEAPON_UNARMED` then
-                    looped = false
-                    break
+                elseif driver == 0 and entering ~= lastPickedVehicle and not HasKeys(plate) and not isTakingKeys then
+                    SetVehicleDoorsLocked(entering, 2)
                 end
             end
-            Wait(sleep)
+
+            -- Hotwiring while in vehicle, also keeps engine off for vehicles you don't own keys to
+            if IsPedInAnyVehicle(ped, false) and not IsHotwiring then
+                sleep = 1000
+                local vehicle = GetVehiclePedIsIn(ped)
+                local plate = INDCore.Functions.GetPlate(vehicle)
+
+                if GetPedInVehicleSeat(vehicle, -1) == PlayerPedId() and not HasKeys(plate) and not isBlacklistedVehicle(vehicle) then
+                    sleep = 5
+
+                    local vehiclePos = GetOffsetFromEntityInWorldCoords(vehicle, 0.0, 1.0, 0.5)
+                    DrawText3D(vehiclePos.x, vehiclePos.y, vehiclePos.z, "~g~[H]~w~ - Attempt Hotwire")
+                    SetVehicleEngineOn(vehicle, false, false, true)
+
+                    if IsControlJustPressed(0, 74) then
+                        Hotwire(vehicle, plate)
+                    end
+                end
+            end
+
+
+            if canCarjack then
+                local playerid = PlayerId()
+                local aiming, target = GetEntityPlayerIsFreeAimingAt(playerid)
+                if aiming and (target ~= nil and target ~= 0) then
+                    if DoesEntityExist(target) and IsPedInAnyVehicle(target, false) and not IsEntityDead(target) and not IsPedAPlayer(target) then
+                        local targetveh = GetVehiclePedIsIn(target)
+                        for _, veh in ipairs(Config.ImmuneVehicles) do
+                            if GetEntityModel(targetveh) == GetHashKey(veh) then
+                                carIsImmune = true
+                            end
+                        end
+                        if GetPedInVehicleSeat(targetveh, -1) == target and not IsBlacklistedWeapon() then
+                            local pos = GetEntityCoords(ped, true)
+                            local targetpos = GetEntityCoords(target, true)
+                            if #(pos - targetpos) < 5.0 and not carIsImmune then
+                                CarjackVehicle(target)
+                            end
+                        end
+                    end
+                end
+            end
         end
+        Wait(sleep)
     end
-end
+end)
 
 function isBlacklistedVehicle(vehicle)
     local isBlacklisted = false
@@ -142,98 +117,50 @@ function isBlacklistedVehicle(vehicle)
     if Entity(vehicle).state.ignoreLocks or GetVehicleClass(vehicle) == 13 then isBlacklisted = true end
     return isBlacklisted
 end
-
-function addNoLockVehicles(model)
-    Config.NoLockVehicles[#Config.NoLockVehicles+1] = model
-end
-exports('addNoLockVehicles', addNoLockVehicles)
-
-function removeNoLockVehicles(model)
-    for k,v in pairs(Config.NoLockVehicles) do
-        if v == model then
-            Config.NoLockVehicles[k] = nil
-        end
-    end
-end
-exports('removeNoLockVehicles', removeNoLockVehicles)
-
-function isBlacklistedVehicle(vehicle)
-    local isBlacklisted = false
-    for _,v in ipairs(Config.NoLockVehicles) do
-        if GetHashKey(v) == GetEntityModel(vehicle) then
-            isBlacklisted = true
-            break;
-        end
-    end
-    if Entity(vehicle).state.ignoreLocks or GetVehicleClass(vehicle) == 13 then isBlacklisted = true end
-    return isBlacklisted
-end
-
-function addNoLockVehicles(model)
-    Config.NoLockVehicles[#Config.NoLockVehicles+1] = model
-end
-exports('addNoLockVehicles', addNoLockVehicles)
-
-function removeNoLockVehicles(model)
-    for k,v in pairs(Config.NoLockVehicles) do
-        if v == model then
-            Config.NoLockVehicles[k] = nil
-        end
-    end
-end
-exports('removeNoLockVehicles', removeNoLockVehicles)
 
 -----------------------
 ---- Client Events ----
 -----------------------
-RegisterKeyMapping('togglelocks', Lang:t("info.tlock"), 'keyboard', 'L')
+
+RegisterKeyMapping('togglelocks', 'Toggle Vehicle Locks', 'keyboard', 'L')
 RegisterCommand('togglelocks', function()
-    local ped = PlayerPedId()
-  if IsPedInAnyVehicle(ped, false) then
-    ToggleVehicleLockswithoutnui(GetVehicle())
-  else
-    if Config.UseKeyfob then
-        openmenu()
-    else
-	ToggleVehicleLockswithoutnui(GetVehicle())
-    end
-  end
-end)
-RegisterKeyMapping('engine', Lang:t("info.engine"), 'keyboard', 'G')
-RegisterCommand('engine', function()
-    local vehicle = GetVehicle()
-    if vehicle and IsPedInVehicle(PlayerPedId(), vehicle) then
-        ToggleEngine(vehicle)
-    end
+    ToggleVehicleLocks(GetVehicle())
 end)
 
 AddEventHandler('onResourceStart', function(resourceName)
-    if resourceName == GetCurrentResourceName() and INDCore.Functions.GetPlayerData() ~= {} then
-        GetKeys()
-    end
+	if resourceName == GetCurrentResourceName() and INDCore.Functions.GetPlayerData() ~= {} then
+		GetKeys()
+	end
 end)
+
 -- Handles state right when the player selects their character and location.
 RegisterNetEvent('INDCore:Client:OnPlayerLoaded', function()
     GetKeys()
 end)
+
 -- Resets state on logout, in case of character change.
 RegisterNetEvent('INDCore:Client:OnPlayerUnload', function()
     KeysList = {}
 end)
+
 RegisterNetEvent('IND-vehiclekeys:client:AddKeys', function(plate)
     KeysList[plate] = true
+
     local ped = PlayerPedId()
     if IsPedInAnyVehicle(ped, false) then
         local vehicle = GetVehiclePedIsIn(ped)
         local vehicleplate = INDCore.Functions.GetPlate(vehicle)
+
         if plate == vehicleplate then
             SetVehicleEngineOn(vehicle, false, false, false)
         end
     end
 end)
+
 RegisterNetEvent('IND-vehiclekeys:client:RemoveKeys', function(plate)
     KeysList[plate] = nil
 end)
+
 RegisterNetEvent('IND-vehiclekeys:client:ToggleEngine', function()
     local EngineOn = GetIsVehicleEngineRunning(GetVehiclePedIsIn(PlayerPedId()))
     local vehicle = GetVehiclePedIsIn(PlayerPedId(), true)
@@ -245,12 +172,14 @@ RegisterNetEvent('IND-vehiclekeys:client:ToggleEngine', function()
         end
     end
 end)
+
 RegisterNetEvent('IND-vehiclekeys:client:GiveKeys', function(id)
     local targetVehicle = GetVehicle()
+
     if targetVehicle then
         local targetPlate = INDCore.Functions.GetPlate(targetVehicle)
         if HasKeys(targetPlate) then
-            if id and type(id) == "number" then -- Give keys to specific ID
+            if id ~= nil then -- Give keys to specific ID
                 GiveKeys(id, targetPlate)
             else
                 if IsPedSittingInVehicle(PlayerPedId(), targetVehicle) then -- Give keys to everyone in vehicle
@@ -263,178 +192,105 @@ RegisterNetEvent('IND-vehiclekeys:client:GiveKeys', function(id)
                 end
             end
         else
-            INDCore.Functions.Notify(Lang:t("notify.ydhk"), 'error')
+            INDCore.Functions.Notify("You don't have keys to this vehicle.", 'error')
         end
     end
 end)
 
-RegisterNetEvent('INDCore:Client:EnteringVehicle', function()
-    robKeyLoop()
-end)
-
-RegisterNetEvent('weapons:client:DrawWeapon', function()
-    Wait(2000)
-    robKeyLoop()
-end)
-
-
 RegisterNetEvent('lockpicks:UseLockpick', function(isAdvanced)
     LockpickDoor(isAdvanced)
 end)
+
+
 -- Backwards Compatibility ONLY -- Remove at some point --
 RegisterNetEvent('vehiclekeys:client:SetOwner', function(plate)
     TriggerServerEvent('IND-vehiclekeys:server:AcquireVehicleKeys', plate)
 end)
 -- Backwards Compatibility ONLY -- Remove at some point --
+
 -----------------------
 ----   Functions   ----
 -----------------------
-function openmenu()
-    TriggerServerEvent("InteractSound_SV:PlayWithinDistance", 0.5, "key", 0.3)
-    SendNUIMessage({ casemenue = 'open' })
-    SetNuiFocus(true, true)
-end
-function isBlacklistedVehicle(vehicle)
-    local isBlacklisted = false
-    for _,v in ipairs(Config.NoLockVehicles) do
-        if GetHashKey(v) == GetEntityModel(vehicle) then
-            isBlacklisted = true
-            break;
-        end
-    end
-    if Entity(vehicle).state.ignoreLocks or GetVehicleClass(vehicle) == 13 then isBlacklisted = true end
-    return isBlacklisted
-end
-function ToggleEngine(veh)
-    if veh then
-        local EngineOn = GetIsVehicleEngineRunning(veh)
-        if not isBlacklistedVehicle(veh) then
-            if HasKeys(INDCore.Functions.GetPlate(veh)) or AreKeysJobShared(veh) then
-                if EngineOn then
-                    SetVehicleEngineOn(veh, false, false, true)
-                else
-                    SetVehicleEngineOn(veh, true, true, true)
-                end
-            end
-        end
-    end
-end
-function ToggleVehicleLockswithoutnui(veh)
-    if veh then
-        if not isBlacklistedVehicle(veh) then
-            if HasKeys(INDCore.Functions.GetPlate(veh)) or AreKeysJobShared(veh) then
-                local ped = PlayerPedId()
-                local vehLockStatus = GetVehicleDoorLockStatus(veh)
 
-                loadAnimDict("anim@mp_player_intmenu@key_fob@")
-                TaskPlayAnim(ped, 'anim@mp_player_intmenu@key_fob@', 'fob_click', 3.0, 3.0, -1, 49, 0, false, false, false)
-
-                TriggerServerEvent("InteractSound_SV:PlayWithinDistance", 5, "lock", 0.3)
-
-                NetworkRequestControlOfEntity(veh)
-                if vehLockStatus == 1 then
-                    TriggerServerEvent('IND-vehiclekeys:server:setVehLockState', NetworkGetNetworkIdFromEntity(veh), 2)
-                    INDCore.Functions.Notify(Lang:t("notify.vlock"), "primary")
-                else
-                    TriggerServerEvent('IND-vehiclekeys:server:setVehLockState', NetworkGetNetworkIdFromEntity(veh), 1)
-                    INDCore.Functions.Notify(Lang:t("notify.vunlock"), "success")
-                end
-
-                SetVehicleLights(veh, 2)
-                Wait(250)
-                SetVehicleLights(veh, 1)
-                Wait(200)
-                SetVehicleLights(veh, 0)
-                Wait(300)
-                ClearPedTasks(ped)
-            else
-                INDCore.Functions.Notify(Lang:t("notify.ydhk"), 'error')
-            end
-        else
-            TriggerServerEvent('IND-vehiclekeys:server:setVehLockState', NetworkGetNetworkIdFromEntity(veh), 1)
-        end
-    end
-end
 function GiveKeys(id, plate)
     local distance = #(GetEntityCoords(PlayerPedId()) - GetEntityCoords(GetPlayerPed(GetPlayerFromServerId(id))))
     if distance < 1.5 and distance > 0.0 then
         TriggerServerEvent('IND-vehiclekeys:server:GiveVehicleKeys', id, plate)
     else
-        INDCore.Functions.Notify(Lang:t("notify.nonear"),'error')
+        INDCore.Functions.Notify('There is nobody nearby to hand keys to.','error')
     end
 end
+
 function GetKeys()
     INDCore.Functions.TriggerCallback('IND-vehiclekeys:server:GetVehicleKeys', function(keysList)
         KeysList = keysList
     end)
 end
+
+exports('HasKeys', HasKeys)
 function HasKeys(plate)
     return KeysList[plate]
 end
-exports('HasKeys', HasKeys)
+
 function loadAnimDict(dict)
     while (not HasAnimDictLoaded(dict)) do
         RequestAnimDict(dict)
         Wait(0)
     end
 end
+
+function GetVehicleInDirection(coordFromOffset, coordToOffset)
+    local ped = PlayerPedId()
+    local coordFrom = GetOffsetFromEntityInWorldCoords(ped, coordFromOffset.x, coordFromOffset.y, coordFromOffset.z)
+    local coordTo = GetOffsetFromEntityInWorldCoords(ped, coordToOffset.x, coordToOffset.y, coordToOffset.z)
+
+    local rayHandle = CastRayPointToPoint(coordFrom.x, coordFrom.y, coordFrom.z, coordTo.x, coordTo.y, coordTo.z, 10, GetPlayerPed(-1), 0)
+    local _, _, _, _, vehicle = GetShapeTestResult(rayHandle)
+    return vehicle
+end
+
 -- If in vehicle returns that, otherwise tries 3 different raycasts to get the vehicle they are facing.
 -- Raycasts picture: https://i.imgur.com/FRED0kV.png
-
 function GetVehicle()
-    local ped = PlayerPedId()
-    local pos = GetEntityCoords(ped)
-    local vehicle = GetVehiclePedIsIn(PlayerPedId())
+    local vehicle = GetVehiclePedIsIn(GetPlayerPed(-1))
 
-    while vehicle == 0 do
-        vehicle = INDCore.Functions.GetClosestVehicle()
-        if #(pos - GetEntityCoords(vehicle)) > 8 then
-            INDCore.Functions.Notify(Lang:t("notify.vehclose"), "error")
-            return
-        end
+    local RaycastOffsetTable = {
+        { ['fromOffset'] = vector3(0.0, 0.0, 0.0), ['toOffset'] = vector3(0.0, 20.0, -10.0) }, -- Waist to ground 45 degree angle
+        { ['fromOffset'] = vector3(0.0, 0.0, 0.7), ['toOffset'] = vector3(0.0, 10.0, -10.0) }, -- Head to ground 30 degree angle
+        { ['fromOffset'] = vector3(0.0, 0.0, 0.7), ['toOffset'] = vector3(0.0, 10.0, -20.0) }, -- Head to ground 15 degree angle
+    }
+
+    local count = 0
+    while vehicle == 0 and count < #RaycastOffsetTable do
+        count = count + 1
+        vehicle = GetVehicleInDirection(RaycastOffsetTable[count]['fromOffset'], RaycastOffsetTable[count]['toOffset'])
     end
 
     if not IsEntityAVehicle(vehicle) then vehicle = nil end
     return vehicle
 end
-function AreKeysJobShared(veh)
-    local vehName = GetDisplayNameFromVehicleModel(GetEntityModel(veh))
-    local vehPlate = INDCore.Functions.GetPlate(veh)
-    local jobName = INDCore.Functions.GetPlayerData().job.name
-    local onDuty = INDCore.Functions.GetPlayerData().job.onduty
-    for job, v in pairs(Config.SharedKeys) do
-        if job == jobName then
-            if Config.SharedKeys[job].requireOnduty and not onDuty then return false end
-            for _, vehicle in pairs(v.vehicles) do
-                if string.upper(vehicle) == string.upper(vehName) then
-                    if not HasKeys(vehPlate) then
-                        TriggerServerEvent("IND-vehiclekeys:server:AcquireVehicleKeys", vehPlate)
-                    end
-                    return true
-                end
-            end
-        end
-    end
-    return false
-end
+
 function ToggleVehicleLocks(veh)
     if veh then
         if not isBlacklistedVehicle(veh) then
-            if HasKeys(INDCore.Functions.GetPlate(veh)) or AreKeysJobShared(veh) then
+            if HasKeys(INDCore.Functions.GetPlate(veh)) then
                 local ped = PlayerPedId()
                 local vehLockStatus = GetVehicleDoorLockStatus(veh)
+
                 loadAnimDict("anim@mp_player_intmenu@key_fob@")
                 TaskPlayAnim(ped, 'anim@mp_player_intmenu@key_fob@', 'fob_click', 3.0, 3.0, -1, 49, 0, false, false, false)
+
                 TriggerServerEvent("InteractSound_SV:PlayWithinDistance", 5, "lock", 0.3)
+
                 NetworkRequestControlOfEntity(veh)
-                while NetworkGetEntityOwner(veh) ~= 128 do
-                    NetworkRequestControlOfEntity(veh)
-                    Wait(0)
-                end
                 if vehLockStatus == 1 then
-                    TriggerServerEvent('IND-vehiclekeys:server:setVehLockState', NetworkGetNetworkIdFromEntity(veh), 2)
-                    INDCore.Functions.Notify(Lang:t("notify.vlock"), "primary")
+                    SetVehicleDoorsLocked(veh, 2)
+                    INDCore.Functions.Notify("Vehicle locked!", "primary")
+                else
+                    SetVehicleDoorsLocked(veh, 1)
+                    INDCore.Functions.Notify("Vehicle unlocked!", "success")
                 end
+
                 SetVehicleLights(veh, 2)
                 Wait(250)
                 SetVehicleLights(veh, 1)
@@ -443,87 +299,14 @@ function ToggleVehicleLocks(veh)
                 Wait(300)
                 ClearPedTasks(ped)
             else
-                INDCore.Functions.Notify(Lang:t("notify.ydhk"), 'error')
+                INDCore.Functions.Notify("You don't have keys to this vehicle.", 'error')
             end
         else
-            TriggerServerEvent('IND-vehiclekeys:server:setVehLockState', NetworkGetNetworkIdFromEntity(veh), 1)
+            SetVehicleDoorsLocked(veh, 1)
         end
     end
 end
-function ToggleVehicleunLocks(veh)
-    if veh then
-        if not isBlacklistedVehicle(veh) then
-            if HasKeys(INDCore.Functions.GetPlate(veh)) or AreKeysJobShared(veh) then
-                local ped = PlayerPedId()
-                local vehLockStatus = GetVehicleDoorLockStatus(veh)
-                loadAnimDict("anim@mp_player_intmenu@key_fob@")
-                TaskPlayAnim(ped, 'anim@mp_player_intmenu@key_fob@', 'fob_click', 3.0, 3.0, -1, 49, 0, false, false, false)
-                TriggerServerEvent("InteractSound_SV:PlayWithinDistance", 5, "lock", 0.3)
-                NetworkRequestControlOfEntity(veh)
-                if vehLockStatus == 2 then
-                    TriggerServerEvent('IND-vehiclekeys:server:setVehLockState', NetworkGetNetworkIdFromEntity(veh), 1)
-                    INDCore.Functions.Notify(Lang:t("notify.vunlock"), "success")
-                end
-                SetVehicleLights(veh, 2)
-                Wait(250)
-                SetVehicleLights(veh, 1)
-                Wait(200)
-                SetVehicleLights(veh, 0)
-                Wait(300)
-                ClearPedTasks(ped)
-            else
-                INDCore.Functions.Notify(Lang:t("notify.ydhk"), 'error')
-            end
-        else
-            TriggerServerEvent('IND-vehiclekeys:server:setVehLockState', NetworkGetNetworkIdFromEntity(veh), 1)
-        end
-    end
-end
-function ToggleVehicleTrunk(veh)
-    if veh then
-        if not isBlacklistedVehicle(veh) then
-            if HasKeys(INDCore.Functions.GetPlate(veh)) or AreKeysJobShared(veh) then
-                local ped = PlayerPedId()
-                local boot = GetEntityBoneIndexByName(GetVehiclePedIsIn(GetPlayerPed(-1), false), 'boot')
-                loadAnimDict("anim@mp_player_intmenu@key_fob@")
-                TaskPlayAnim(ped, 'anim@mp_player_intmenu@key_fob@', 'fob_click', 3.0, 3.0, -1, 49, 0, false, false, false)
-                TriggerServerEvent("InteractSound_SV:PlayWithinDistance", 5, "lock", 0.3)
-                NetworkRequestControlOfEntity(veh)
-                if boot ~= -1 or DoesEntityExist(veh) then
-                    if trunkclose == true then
-                        SetVehicleLights(veh, 2)
-                        Citizen.Wait(150)
-                        SetVehicleLights(veh, 0)
-                        Citizen.Wait(150)
-                        SetVehicleLights(veh, 2)
-                        Citizen.Wait(150)
-                        SetVehicleLights(veh, 0)
-                        Citizen.Wait(150)
-                        SetVehicleDoorOpen(veh, 5)
-                        trunkclose = false
-                        ClearPedTasks(ped)
-                    else
-                        SetVehicleLights(veh, 2)
-                        Citizen.Wait(150)
-                        SetVehicleLights(veh, 0)
-                        Citizen.Wait(150)
-                        SetVehicleLights(veh, 2)
-                        Citizen.Wait(150)
-                        SetVehicleLights(veh, 0)
-                        Citizen.Wait(150)
-                        SetVehicleDoorShut(veh, 5)
-                        trunkclose = true
-                        ClearPedTasks(ped)
-                    end
-			   end
-            else
-                INDCore.Functions.Notify(Lang:t("notify.ydhk"), 'error')
-            end
-        else
-            TriggerServerEvent('IND-vehiclekeys:server:setVehLockState', NetworkGetNetworkIdFromEntity(veh), 1)
-        end
-    end
-end
+
 function GetOtherPlayersInVehicle(vehicle)
     local otherPeds = {}
     for seat=-1,GetVehicleModelNumberOfSeats(GetEntityModel(vehicle))-2 do
@@ -569,35 +352,36 @@ function LockpickDoor(isAdvanced)
     if GetVehicleDoorLockStatus(vehicle) <= 0 then return end
 
     usingAdvanced = isAdvanced
-    Config.LockPickDoorEvent()
+    TriggerEvent('IND-lockpick:client:openLockpick', lockpickFinish)
 end
-function LockpickFinishCallback(success)
+
+function lockpickFinish(success)
     local vehicle = INDCore.Functions.GetClosestVehicle()
 
     local chance = math.random()
     if success then
-        TriggerServerEvent('hud:server:GainStress', math.random(1, 4))
+        TriggerServerEvent('hud:server:GainStress', math.random(10, 20))
         lastPickedVehicle = vehicle
 
         if GetPedInVehicleSeat(vehicle, -1) == PlayerPedId() then
             TriggerServerEvent('IND-vehiclekeys:server:AcquireVehicleKeys', INDCore.Functions.GetPlate(vehicle))
         else
-            INDCore.Functions.Notify(Lang:t("notify.vlockpick"), 'success')
-            TriggerServerEvent('IND-vehiclekeys:server:setVehLockState', NetworkGetNetworkIdFromEntity(vehicle), 1)
+            INDCore.Functions.Notify('You managed to pick the door lock open!', 'success')
+            SetVehicleDoorsLocked(vehicle, 1)
         end
 
     else
-        TriggerServerEvent('hud:server:GainStress', math.random(1, 4))
+        TriggerServerEvent('hud:server:GainStress', math.random(10, 20))
         AttemptPoliceAlert("steal")
     end
 
     if usingAdvanced then
         if chance <= Config.RemoveLockpickAdvanced then
-            TriggerServerEvent("IND-vehiclekeys:server:breakLockpick", "advancedlockpick")
+            TriggerServerEvent("inventory:server:breakLockpick", "advancedlockpick")
         end
     else
         if chance <= Config.RemoveLockpickNormal then
-            TriggerServerEvent("IND-vehiclekeys:server:breakLockpick", "lockpick")
+            TriggerServerEvent("inventory:server:breakLockpick", "lockpick")
         end
     end
 end
@@ -609,7 +393,7 @@ function Hotwire(vehicle, plate)
 
     SetVehicleAlarm(vehicle, true)
     SetVehicleAlarmTimeLeft(vehicle, hotwireTime)
-    INDCore.Functions.Progressbar("hotwire_vehicle", Lang:t("progress.hskeys"), hotwireTime, false, true, {
+    INDCore.Functions.Progressbar("hotwire_vehicle", "Hotwiring the vehicle...", hotwireTime, false, true, {
         disableMovement = true,
         disableCarMovement = true,
         disableMouse = false,
@@ -620,11 +404,12 @@ function Hotwire(vehicle, plate)
         flags = 16
     }, {}, {}, function() -- Done
         StopAnimTask(ped, "anim@amb@clubhouse@tutorial@bkr_tut_ig3@", "machinic_loop_mechandplayer", 1.0)
-        TriggerServerEvent('hud:server:GainStress', math.random(1, 4))
+        TriggerServerEvent('hud:server:GainStress', math.random(5, 10))
         if (math.random() <= Config.HotwireChance) then
             TriggerServerEvent('IND-vehiclekeys:server:AcquireVehicleKeys', plate)
+            TriggerEvent("IND-platescan:client:AddStolenPlate", vehicle, plate)
         else
-            INDCore.Functions.Notify(Lang:t("notify.fvlockpick"), "error")
+            INDCore.Functions.Notify("You fail to find the keys and get frustrated.", "error")
         end
         Wait(Config.TimeBetweenHotwires)
         IsHotwiring = false
@@ -632,16 +417,17 @@ function Hotwire(vehicle, plate)
         StopAnimTask(ped, "anim@amb@clubhouse@tutorial@bkr_tut_ig3@", "machinic_loop_mechandplayer", 1.0)
         IsHotwiring = false
     end)
-    SetTimeout(10000, function()
-        AttemptPoliceAlert("steal")
-    end)
-    IsHotwiring = false
+
+    Wait(10000)
+    AttemptPoliceAlert("steal")
 end
+
 function CarjackVehicle(target)
-    if not Config.CarJackEnable then return end
     isCarjacking = true
     canCarjack = false
+
     loadAnimDict('mp_am_hold_up')
+
     local vehicle = GetVehiclePedIsUsing(target)
     local occupants = GetPedsInVehicle(vehicle)
     for p=1,#occupants do
@@ -652,6 +438,7 @@ function CarjackVehicle(target)
         end)
         Wait(math.random(200,500))
     end
+
     -- Cancel progress bar if: Ped dies during robbery, car gets too far away
     CreateThread(function()
         while isCarjacking do
@@ -662,20 +449,16 @@ function CarjackVehicle(target)
             Wait(100)
         end
     end)
-    INDCore.Functions.Progressbar("rob_keys", Lang:t("progress.acjack"), Config.CarjackingTime, false, true, {}, {}, {}, {}, function()
+
+    INDCore.Functions.Progressbar("rob_keys", "Attempting Carjacking..", Config.CarjackingTime, false, true, {}, {}, {}, {}, function()
         local hasWeapon, weaponHash = GetCurrentPedWeapon(PlayerPedId(), true)
         if hasWeapon and isCarjacking then
-            local carjackChance
-            if Config.CarjackChance[tostring(GetWeapontypeGroup(weaponHash))] then
-                carjackChance = Config.CarjackChance[tostring(GetWeapontypeGroup(weaponHash))]
-            else
-                carjackChance = 0.5
-            end
-            if math.random() <= carjackChance then
+            if math.random() <= Config.CarjackChance[tostring(GetWeapontypeGroup(weaponHash))] then
                 local plate = INDCore.Functions.GetPlate(vehicle)
-                    for p=1,#occupants do
-                        local ped = occupants[p]
-                        CreateThread(function()
+
+                for p=1,#occupants do
+                    local ped = occupants[p]
+                    CreateThread(function()
                         TaskLeaveVehicle(ped, vehicle, 0)
                         PlayPain(ped, 6, 0)
                         Wait(1250)
@@ -687,7 +470,6 @@ function CarjackVehicle(target)
                 TriggerServerEvent('hud:server:GainStress', math.random(1, 4))
                 TriggerServerEvent('IND-vehiclekeys:server:AcquireVehicleKeys', plate)
             else
-                INDCore.Functions.Notify(Lang:t("notify.cjackfail"), "error")
                 MakePedFlee(target)
                 TriggerServerEvent('hud:server:GainStress', math.random(1, 4))
             end
@@ -712,7 +494,7 @@ function AttemptPoliceAlert(type)
             chance = Config.PoliceNightAlertChance
         end
         if math.random() <= chance then
-           TriggerServerEvent('police:server:policeAlert', Lang:t("info.palert") .. type)
+           TriggerServerEvent('police:server:policeAlert', 'Vehicle theft in progress. Type: ' .. type)
         end
         AlertSend = true
         SetTimeout(Config.AlertCooldown, function()
@@ -720,10 +502,12 @@ function AttemptPoliceAlert(type)
         end)
     end
 end
+
 function MakePedFlee(ped)
     SetPedFleeAttributes(ped, 0, 0)
     TaskReactAndFleePed(ped, PlayerPedId())
 end
+
 function DrawText3D(x, y, z, text)
     SetTextScale(0.35, 0.35)
     SetTextFont(4)
@@ -738,25 +522,3 @@ function DrawText3D(x, y, z, text)
     DrawRect(0.0, 0.0 + 0.0125, 0.017 + factor, 0.03, 0, 0, 0, 75)
     ClearDrawOrigin()
 end
------------------------
-----   NUICallback   ----
------------------------
-RegisterNUICallback('closui', function()
-	SetNuiFocus(false, false)
-end)
-RegisterNUICallback('unlock', function()
-    ToggleVehicleunLocks(GetVehicle())
-	SetNuiFocus(false, false)
-end)
-RegisterNUICallback('lock', function()
-    ToggleVehicleLocks(GetVehicle())
-	SetNuiFocus(false, false)
-end)
-RegisterNUICallback('trunk', function()
-    ToggleVehicleTrunk(GetVehicle())
-	SetNuiFocus(false, false)
-end)
-RegisterNUICallback('engine', function()
-    ToggleEngine(GetVehicle())
-	SetNuiFocus(false, false)
-end)
